@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.Movie8" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/movie8_orange</item>
+        <item name="android:navigationBarColor">@color/movie8_bg</item>
+        <item name="android:statusBarColor">@color/movie8_bg</item>
+    </style>
+</resources>

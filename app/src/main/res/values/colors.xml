@@ -1,0 +1,8 @@
+<resources>
+    <color name="movie8_bg">#101010</color>
+    <color name="movie8_surface">#191919</color>
+    <color name="movie8_border">#303030</color>
+    <color name="movie8_orange">#f6a800</color>
+    <color name="movie8_text">#f5f5f5</color>
+    <color name="movie8_muted">#9a9a9a</color>
+</resources>

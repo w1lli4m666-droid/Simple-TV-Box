@@ -24,10 +24,10 @@ updated without losing watch history when the signing certificate matches.
 The initial release reuses the existing local development signing certificate
 for upgrade compatibility; its private key is not distributed.
 
-### Version 1.1.1
+### Version 1.1.2
 
-[Download the signed ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.1/Simple-TV-Box-v1.1.1-android5-arm.apk)
-or read the [release notes](docs/releases/v1.1.1.md).
+[Download the signed ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.2/Simple-TV-Box-v1.1.2-android5-arm.apk)
+or read the [release notes](docs/releases/v1.1.2.md).
 
 ## Features
 
@@ -81,6 +81,9 @@ When the input is empty, saved searches appear as compact multi-column cards
 The trash icon remains at the upper-right edge, above the last card slot,
 regardless of the number of entries. Long-press a card to delete one entry, or
 use the trash icon to clear them all; both actions ask for confirmation.
+Left / right stays within the current row of search-history cards and search
+results. At either edge, focus stays on the current card instead of jumping
+to an unrelated top navigation tab.
 
 On Search and Watch history, pressing Back from content first returns focus to
 that page's own top tab and brings lists back to the first row. It does not

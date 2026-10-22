@@ -10,9 +10,11 @@ public final class DpadGridView extends RecyclerView {
     public interface NearEndListener { void onNearEnd(); }
     public interface TopRowListener { void onTopRowUp(); }
     private NearEndListener nearEnd; private TopRowListener topRow;
+    private boolean containHorizontalFocus;
     public DpadGridView(Context context) { super(context); setFocusable(true); setFocusableInTouchMode(true); setDescendantFocusability(FOCUS_AFTER_DESCENDANTS); setClipChildren(false); setClipToPadding(false); }
     public void setOnNearEndListener(NearEndListener listener){nearEnd=listener;}
     public void setOnTopRowUpListener(TopRowListener listener){topRow=listener;}
+    public void setContainHorizontalFocus(boolean value){containHorizontalFocus=value;}
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN && (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT || event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT || event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP || event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN)) {
             View current = getFocusedChild();
@@ -21,6 +23,10 @@ public final class DpadGridView extends RecyclerView {
                 if(event.getKeyCode()==KeyEvent.KEYCODE_DPAD_UP && position>=0 && position<columns && topRow!=null){topRow.onTopRowUp();return true;}
                 if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) next = position - 1;
                 if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) next = position + 1;
+                if(containHorizontalFocus&&position>=0&&getAdapter()!=null&&(event.getKeyCode()==KeyEvent.KEYCODE_DPAD_LEFT||event.getKeyCode()==KeyEvent.KEYCODE_DPAD_RIGHT)){
+                    next=HorizontalGridFocus.target(position,getAdapter().getItemCount(),columns,event.getKeyCode()==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);
+                    if(next==position)return true;
+                }
                 if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP) next = position - columns;
                 if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) next = position + columns;
                 if (next >= 0 && getAdapter() != null && next < getAdapter().getItemCount()) {

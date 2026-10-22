@@ -21,10 +21,10 @@
 包名继续使用 `win.movie8.tv`；签名一致时可以覆盖安装旧 PureBox，保留播放记录。
 首个发布版沿用原有本地开发签名证书以支持覆盖升级，私钥不对外分发。
 
-### 1.1.1 版本
+### 1.1.2 版本
 
-[下载已签名的 ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.1/Simple-TV-Box-v1.1.1-android5-arm.apk)，
-或查看[版本说明](docs/releases/v1.1.1.md)。
+[下载已签名的 ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.2/Simple-TV-Box-v1.1.2-android5-arm.apk)，
+或查看[版本说明](docs/releases/v1.1.2.md)。
 
 ## 功能
 
@@ -72,6 +72,8 @@
 只有一条记录时也保持单个格子的宽度，不会撑满整行。
 垃圾桶图标固定在第一行最右侧卡片槽位上方，不随记录数量左移。
 长按卡片删除单条，点击垃圾桶清空全部；两种操作均有确认提示。
+搜索记录和搜索结果的左右方向键仅在当前行内移动；到达行首、行尾时停留在当前卡片，
+不会跳到顶部其他分类并触发自动切页。
 
 在搜索、播放记录的内容区按遥控器返回键，先将列表归顶，焦点回到当前顶部的“搜索”或“播放记录”，
 不会直接跳回先前的“动漫”等分类。焦点已经位于顶部导航时，再按返回仍沿用原来的页面返回行为。

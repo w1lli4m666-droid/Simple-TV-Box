@@ -8,8 +8,8 @@ android {
         applicationId 'win.movie8.tv'
         minSdk 21
         targetSdk 28
-        versionCode 3
-        versionName '1.1.1'
+        versionCode 4
+        versionName '1.1.2'
 
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'

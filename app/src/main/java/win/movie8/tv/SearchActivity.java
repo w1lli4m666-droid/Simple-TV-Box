@@ -70,7 +70,7 @@ public final class SearchActivity extends RemoteActivity {
         root.addView(status,new LinearLayout.LayoutParams(-1,-2));
         FrameLayout results=new FrameLayout(this);
         grid=new DpadGridView(this);grid.setId(View.generateViewId());grid.setPadding(0,dp(5),0,0);
-        grid.setLayoutManager(new GridLayoutManager(this,5));adapter=new MovieAdapter(this,this::open);grid.setAdapter(adapter);
+        grid.setLayoutManager(new GridLayoutManager(this,5));grid.setContainHorizontalFocus(true);adapter=new MovieAdapter(this,this::open);grid.setAdapter(adapter);
         grid.setOnTopRowUpListener(()->searchButton.requestFocus());results.addView(grid,new FrameLayout.LayoutParams(-1,-1));
         spinner=new ProgressBar(this);spinner.setIndeterminate(true);spinner.setFocusable(false);
         spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.rgb(246,168,0)));
@@ -116,6 +116,11 @@ public final class SearchActivity extends RemoteActivity {
             card.setOnClickListener(view->{changingQuery=true;input.setText(term);input.setSelection(term.length());changingQuery=false;search();});
             card.setOnLongClickListener(view->{new android.app.AlertDialog.Builder(this).setMessage(R.string.confirm_delete_search_history).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.delete,(dialog,which)->{SearchHistory.delete(this,term);renderHistory();if(historyCards.getChildCount()>0)historyCards.getChildAt(0).requestFocus();else input.requestFocus();}).show();return true;});
             if(i<columns)card.setNextFocusUpId(i==Math.min(columns,terms.size())-1?clearHistory.getId():input.getId());
+        }
+        for(int i=0;i<terms.size();i++){
+            View card=historyCards.getChildAt(i);
+            card.setNextFocusLeftId(historyCards.getChildAt(HorizontalGridFocus.target(i,terms.size(),columns,-1)).getId());
+            card.setNextFocusRightId(historyCards.getChildAt(HorizontalGridFocus.target(i,terms.size(),columns,1)).getId());
         }
         // Empty columns keep a short history from stretching into full-width rows.
         int slots=((terms.size()+columns-1)/columns)*columns;

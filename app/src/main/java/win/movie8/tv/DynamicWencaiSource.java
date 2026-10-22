@@ -52,7 +52,7 @@ final class DynamicWencaiSource {
         ensureReady();
         if ("recent".equals(section)) {
             ArrayList<Movie> combined = new ArrayList<>();
-            for (String item : new String[]{"movie", "series", "variety", "anime"}) combined.addAll(category(item, page));
+            for(String item:new String[]{"movie","series","variety","anime"}){List<Movie> movies=category(item,page);if(page==1)ListPreviewCache.save(item,movies);combined.addAll(movies);}
             Collections.sort(combined, (a, b) -> b.time.compareTo(a.time));
             return unique(combined, 25);
         }
@@ -60,9 +60,14 @@ final class DynamicWencaiSource {
     }
 
     static List<Movie> search(String keyword) throws Exception {
+        return search(keyword,5);
+    }
+
+    static List<Movie> search(String keyword,int maxPages) throws Exception {
         ensureReady();
         ArrayList<Movie> result = new ArrayList<>();
-        for (int page = 1; page <= 5; page++) {
+        for (int page = 1; page <= maxPages; page++) {
+            if(Thread.currentThread().isInterrupted())throw new InterruptedException("Search canceled");
             String json = (String) searchContent.invoke(spider, keyword, false, String.valueOf(page));
             List<Movie> pageItems = movies(json);
             result.addAll(pageItems);

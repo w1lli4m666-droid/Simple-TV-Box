@@ -42,6 +42,7 @@ public final class WencaiClient {
     private WencaiClient() { }
 
     public static synchronized void initialize(Context context) {
+        ListPreviewCache.initialize(context);
         if (HTTP == null) HTTP = createHttpClient(context.getApplicationContext());
         DynamicWencaiSource.initialize(context.getApplicationContext(), HTTP);
     }
@@ -78,7 +79,9 @@ public final class WencaiClient {
         return load(section, 1);
     }
     public static List<Movie> load(String section, int page) throws Exception {
-        return loadInternal(section, page);
+        List<Movie> movies=loadInternal(section,page);
+        if(page==1)ListPreviewCache.save(section,movies);
+        return movies;
     }
     private static List<Movie> loadInternal(String section, int page) throws Exception {
         try {
@@ -86,7 +89,8 @@ public final class WencaiClient {
         } catch (Exception ignored) { }
         if ("recent".equals(section)) {
             ArrayList<Movie> all = new ArrayList<>();
-            for (String type : new String[]{"1", "2", "3", "4"}) all.addAll(list(type, page));
+            String[] sections={"movie","series","variety","anime"};
+            for(int i=0;i<sections.length;i++){List<Movie> movies=list(String.valueOf(i+1),page);if(page==1)ListPreviewCache.save(sections[i],movies);all.addAll(movies);}
             Collections.sort(all, new Comparator<Movie>() {
                 public int compare(Movie a, Movie b) { return b.time.compareTo(a.time); }
             });
@@ -96,11 +100,21 @@ public final class WencaiClient {
     }
 
     public static List<Movie> search(String keyword) throws Exception {
+        return search(keyword,5);
+    }
+
+    static List<Movie> suggest(String keyword) throws Exception {
+        return search(keyword,1);
+    }
+
+    private static List<Movie> search(String keyword,int maxPages) throws Exception {
         try {
-            if (DynamicWencaiSource.available()) return DynamicWencaiSource.search(keyword);
+            if (DynamicWencaiSource.available()) return DynamicWencaiSource.search(keyword,maxPages);
         } catch (Exception ignored) { }
+        if(Thread.currentThread().isInterrupted())throw new InterruptedException("Search canceled");
         ArrayList<Movie> all = new ArrayList<>();
-        for (int page = 1; page <= 5; page++) {
+        for (int page = 1; page <= maxPages; page++) {
+            if(Thread.currentThread().isInterrupted())throw new InterruptedException("Search canceled");
             String canonical = "keyword=" + keyword + "&pageNum=" + page + "&pageSize=25";
             JSONObject data = request("/api/mw-movie/anonymous/video/searchByWord",
                     "keyword=" + enc(keyword) + "&pageNum=" + page + "&pageSize=25", canonical);

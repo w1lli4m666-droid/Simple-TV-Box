@@ -6,6 +6,12 @@
     <string name="variety">综艺</string>
     <string name="anime">动漫</string>
     <string name="search">搜索</string>
+    <string name="searching">搜索中</string>
+    <string name="no_search_results">没有找到相关影视</string>
+    <string name="search_history">搜索记录</string>
+    <string name="clear_search_history">清空搜索记录</string>
+    <string name="confirm_clear_search_history">确定清空所有搜索记录？</string>
+    <string name="confirm_delete_search_history">确定删除这条搜索记录？</string>
     <string name="history">播放记录</string>
     <string name="loading">加载中</string>
     <string name="retry_category">加载失败，请点击当前栏目重试</string>

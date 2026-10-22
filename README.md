@@ -24,14 +24,23 @@ updated without losing watch history when the signing certificate matches.
 The initial release reuses the existing local development signing certificate
 for upgrade compatibility; its private key is not distributed.
 
+### Version 1.1.1
+
+[Download the signed ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.1/Simple-TV-Box-v1.1.1-android5-arm.apk)
+or read the [release notes](docs/releases/v1.1.1.md).
+
 ## Features
 
 - Recently updated, movies, TV shows, variety and anime tabs; five-column covers.
 - Search, episode selection in an eight-column grid, and ascending/descending order.
 - Local watch history with episode and playback-position restoration.
 - D-pad navigation, remote playback controls and touchscreen seeking.
+- Focus a top navigation tab to open it automatically, including Search and
+  Watch history. Navigation stays available on those pages.
 - Keep the screen awake during active playback.
-- Cached first-page preview on startup, followed by a background refresh.
+- Cached first-page previews for all five categories, followed by a background refresh.
+- Search suggestions after a short typing pause, a loading spinner, and local
+  search-history cards with long-press deletion and a clear-all control.
 - Dynamic subscription/plugin checking at startup with a bundled API fallback.
 - English by default; Simplified Chinese devices display Chinese UI and the
   launcher name **简单电视**. Other devices display **Simple TV Box**.
@@ -46,14 +55,46 @@ updates the interface; some launchers may need time to refresh the displayed nam
 | --- | --- | --- |
 | Navigate | D-pad | Scroll and tap |
 | Switch category | Focus a category tab | Tap a category tab |
+| Open Search / Watch history | Focus the corresponding top tab | Tap the corresponding top tab |
 | Refresh category | Confirm on the current tab | Tap the current tab |
 | Enter fullscreen | Confirm on the video preview | Tap the video preview |
 | Play / pause in fullscreen | Confirm | Center playback button |
 | Seek in fullscreen | Left / right when controls are hidden | Swipe horizontally |
 | Show / hide bottom controls | Settings, Menu or Info | Tap an empty video area |
 | Delete a history entry | Long-press Confirm | Long-press the entry |
+| Select a search suggestion | Down, then Confirm to search immediately | Tap the suggestion |
+| Reuse / delete a saved search | Confirm / long-press Confirm | Tap / long-press the card |
+| Return from Search / Watch history content | Back focuses the current top tab and resets list scroll | Back gesture |
 | Return from deep results | Back returns to the first row and navigation | Back gesture |
-| Exit from top navigation | Back twice within 1.8 seconds | Back twice within 1.8 seconds |
+| Exit from the library top navigation | Back twice within 1.8 seconds | Back twice within 1.8 seconds |
+
+## Search and startup behavior
+
+After a 400 ms typing pause, the app requests one page from Wencai and shows up
+to five distinct matching titles below the input. Selecting a title immediately
+starts a full search; an orange spinner stays visible while that search runs.
+Stale responses cannot replace a newer query. If the device keyboard captures
+directional keys, close it with Back before moving Down to the suggestions.
+
+When the input is empty, saved searches appear as compact multi-column cards
+(up to five columns on TV). One entry does not stretch across the entire row.
+The trash icon remains at the upper-right edge, above the last card slot,
+regardless of the number of entries. Long-press a card to delete one entry, or
+use the trash icon to clear them all; both actions ask for confirmation.
+
+On Search and Watch history, pressing Back from content first returns focus to
+that page's own top tab and brings lists back to the first row. It does not
+immediately leave the page for the previously selected category. With focus
+already in the top navigation, Back retains the normal page-return behavior.
+An open keyboard or confirmation dialog handles Back first.
+
+The first-page cache is retained for up to 24 hours. All five categories can
+display cached lists while fresh data loads in the background. The four category
+responses already downloaded for Recently updated are also cached; no extra
+prefetch requests are needed. A first launch without cache, an expired cache or
+plugin initialization after an APK update can still require several seconds.
+Caching improves time to visible content; it does not eliminate plugin
+initialization or network latency.
 
 ## Build
 
@@ -81,8 +122,8 @@ execute inside the app and are not covered by this repository's license. The
 subscription currently uses HTTP, so its transport is not encrypted. MD5 checks
 detect mismatched downloads but do not establish the provider's authenticity.
 
-Watch history stays in the device's local app storage. The app does not upload it
-to this repository or a project-operated server. The provider and IP-lookup
+Watch history and search history stay in the device's local app storage. The
+app does not upload them to this repository or a project-operated server. The provider and IP-lookup
 services can still see network requests and the device's public IP. Source
 availability, content access and rights depend on the provider. No videos,
 third-party plugin binaries, captured account data or signing keys are bundled

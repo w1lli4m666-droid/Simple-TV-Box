@@ -7,6 +7,8 @@ import android.text.Html;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -29,7 +31,7 @@ import java.util.concurrent.Executors;
 
 public final class PlayerActivity extends RemoteActivity {
     private boolean foreground;
-    private final ExecutorService network=Executors.newSingleThreadExecutor(); private final Handler handler=new Handler(); private ExoPlayer player; private Movie movie; private final ArrayList<Episode> episodes=new ArrayList<>(); private Episode active; private TextView status,intro,seekHint,timeText,seekTime; private long restorePosition; private FrameLayout screen,playerFrame,seekOverlay; private PlayerView playerView; private LinearLayout normalContent,videoColumn,controls; private ImageButton centerToggle,bottomToggle,nextButton; private Button sortButton; private SeekBar progress,seekProgress; private DpadGridView episodeGrid; private EpisodeAdapter episodeAdapter; private boolean descending,fullscreen,seeking; private float swipeStartX; private long swipeStartPosition;
+    private final ExecutorService network=Executors.newSingleThreadExecutor(); private final Handler handler=new Handler(); private ExoPlayer player; private Movie movie; private final ArrayList<Episode> episodes=new ArrayList<>(); private Episode active; private TextView status,intro,seekHint,timeText,seekTime; private long restorePosition; private FrameLayout screen,playerFrame,seekOverlay; private PlayerView playerView; private LinearLayout normalContent,videoColumn,details,controls; private ImageButton centerToggle,bottomToggle,nextButton; private Button sortButton; private SeekBar progress,seekProgress; private DpadGridView episodeGrid; private EpisodeAdapter episodeAdapter; private boolean descending,fullscreen,seeking; private float swipeStartX; private long swipeStartPosition;
     private final Runnable saver=new Runnable(){public void run(){save();handler.postDelayed(this,5000);}};
     public void onCreate(Bundle state){super.onCreate(state);movie=new Movie(getIntent().getStringExtra("id"),getIntent().getStringExtra("name"),getIntent().getStringExtra("poster"),getIntent().getStringExtra("remarks"),"","","","");if(getIntent().hasExtra("nid")){restorePosition=getIntent().getLongExtra("position",0);}else{JSONObject saved=HistoryStore.latestForMovie(this,movie.id);if(saved!=null){getIntent().putExtra("nid",saved.optString("nid"));restorePosition=saved.optLong("position",0);}}build();load();}
     private void build(){
@@ -38,7 +40,7 @@ public final class PlayerActivity extends RemoteActivity {
         playerFrame=new FrameLayout(this);playerFrame.setFocusable(true);playerFrame.setFocusableInTouchMode(false);playerFrame.setPadding(dp(2),dp(2),dp(2),dp(2));playerFrame.setBackgroundResource(R.drawable.focus_player);player=new ExoPlayer.Builder(this).build();playerView=new PlayerView(this);playerView.setPlayer(player);playerView.setUseController(false);playerView.setOnClickListener(v->{if(!fullscreen)enterFullscreen();});playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));videoColumn.addView(playerFrame,new LinearLayout.LayoutParams(-1,0,1));
         status=new TextView(this);status.setTextColor(Color.LTGRAY);status.setPadding(0,dp(7),0,0);videoColumn.addView(status,new LinearLayout.LayoutParams(-1,dp(30)));
         sortButton=new Button(this);sortButton.setId(View.generateViewId());sortButton.setText(getString(R.string.sort_descending));sortButton.setTextColor(Color.WHITE);sortButton.setTextSize(14);sortButton.setAllCaps(false);sortButton.setBackgroundResource(R.drawable.focus_button);sortButton.setOnClickListener(v->{descending=!descending;sortButton.setText(descending?getString(R.string.sort_ascending):getString(R.string.sort_descending));episodeAdapter.replace(episodes,descending);focusFirstEpisode();});top.addView(sortButton,new LinearLayout.LayoutParams(dp(72),dp(44)));playerFrame.setNextFocusRightId(sortButton.getId());
-        LinearLayout details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);details.setPadding(dp(12),0,0,dp(30));top.addView(details,new LinearLayout.LayoutParams(0,-1,2));TextView title=new TextView(this);title.setText(movie.name);title.setTextSize(21);title.setTextColor(Color.WHITE);title.setMaxLines(2);details.addView(title);TextView remark=new TextView(this);remark.setText(movie.remarks);remark.setTextColor(Color.rgb(246,168,0));remark.setPadding(0,dp(10),0,0);details.addView(remark);intro=new TextView(this);intro.setTextColor(Color.rgb(190,190,190));intro.setTextSize(14);intro.setPadding(0,dp(12),0,0);details.addView(intro,new LinearLayout.LayoutParams(-1,0,1));
+        details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);details.setPadding(dp(12),0,0,dp(30));top.addView(details,new LinearLayout.LayoutParams(0,-1,2));TextView title=new TextView(this);title.setText(movie.name);title.setTextSize(21);title.setTextColor(Color.WHITE);title.setMaxLines(2);details.addView(title);TextView remark=new TextView(this);remark.setText(movie.remarks);remark.setTextColor(Color.rgb(246,168,0));remark.setPadding(0,dp(10),0,0);details.addView(remark);intro=new TextView(this);intro.setTextColor(Color.rgb(190,190,190));intro.setTextSize(14);intro.setPadding(0,dp(12),0,0);details.addView(intro,new LinearLayout.LayoutParams(-1,0,1));
         TextView label=new TextView(this);label.setText(getString(R.string.episodes));label.setTextColor(Color.WHITE);label.setTextSize(17);label.setPadding(0,dp(8),0,dp(3));normalContent.addView(label);episodeGrid=new DpadGridView(this);episodeGrid.setId(View.generateViewId());episodeGrid.setLayoutManager(new GridLayoutManager(this,8));episodeAdapter=new EpisodeAdapter(this,this::play);episodeGrid.setAdapter(episodeAdapter);normalContent.addView(episodeGrid,new LinearLayout.LayoutParams(-1,dp(98)));sortButton.setOnKeyListener((v,key,event)->{if(event.getAction()==KeyEvent.ACTION_DOWN&&key==KeyEvent.KEYCODE_DPAD_DOWN){focusFirstEpisode();return true;}return false;});
         top.removeView(sortButton);details.addView(sortButton,new LinearLayout.LayoutParams(dp(72),dp(44)));label.setVisibility(View.GONE);buildFullscreenControls();setContentView(screen);player.addListener(new Player.Listener(){public void onPlaybackStateChanged(int state){updateScreenAwake();if(state==Player.STATE_ENDED)next();}public void onPlayWhenReadyChanged(boolean ready,int reason){updateScreenAwake();}public void onPlayerError(androidx.media3.common.PlaybackException error){getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}});
     }
@@ -61,8 +63,61 @@ public final class PlayerActivity extends RemoteActivity {
     private void showCenterPauseBriefly(){if(!fullscreen)return;handler.removeCallbacks(hideCenter);centerToggle.setImageResource(R.drawable.ic_pause);centerToggle.setVisibility(View.VISIBLE);handler.postDelayed(hideCenter,500);}
     private void revealCenterControl(){if(!fullscreen)return;handler.removeCallbacks(hideCenter);centerToggle.setImageResource(player.isPlaying()?R.drawable.ic_pause:R.drawable.ic_play);centerToggle.setVisibility(View.VISIBLE);}
     private void hideCenterToggle(){handler.removeCallbacks(hideCenter);centerToggle.setVisibility(View.GONE);}
-    private void enterFullscreen(){if(fullscreen)return;fullscreen=true;normalContent.setVisibility(View.GONE);videoColumn.removeView(playerFrame);playerFrame.setPadding(0,0,0,0);playerFrame.setBackgroundColor(Color.BLACK);screen.addView(playerFrame,new FrameLayout.LayoutParams(-1,-1));screen.addView(controls,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));screen.addView(seekOverlay,new FrameLayout.LayoutParams(-1,dp(58),Gravity.BOTTOM));screen.addView(centerToggle,new FrameLayout.LayoutParams(dp(120),dp(64),Gravity.CENTER));screen.addView(seekHint,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));controls.setVisibility(View.GONE);playerView.setOnTouchListener((v,event)->onFullscreenTouch(event));getWindow().getDecorView().setSystemUiVisibility(5894);playerFrame.requestFocus();}
-    private void exitFullscreen(){if(!fullscreen)return;fullscreen=false;playerView.setOnTouchListener(null);hideOverlays();screen.removeView(seekHint);screen.removeView(centerToggle);screen.removeView(seekOverlay);screen.removeView(controls);screen.removeView(playerFrame);playerFrame.setPadding(dp(2),dp(2),dp(2),dp(2));playerFrame.setBackgroundResource(R.drawable.focus_player);videoColumn.addView(playerFrame,0,new LinearLayout.LayoutParams(-1,0,1));normalContent.setVisibility(View.VISIBLE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);playerFrame.requestFocus();}
+    // Keep the PlayerView attached to the window across the fullscreen transition.
+    // Removing it from the view tree destroys the SurfaceView's surface; ExoPlayer
+    // keeps decoding audio but loses its video output, so the picture freezes while
+    // the sound carries on. Only the surrounding layout changes here.
+    private void enterFullscreen(){
+        if(fullscreen)return;
+        fullscreen=true;
+        normalContent.setPadding(0,0,0,0);
+        details.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
+        episodeGrid.setVisibility(View.GONE);
+        videoColumn.setLayoutParams(new LinearLayout.LayoutParams(-1,-1));
+        playerFrame.setPadding(0,0,0,0);
+        playerFrame.setBackgroundColor(Color.BLACK);
+        screen.addView(controls,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
+        screen.addView(seekOverlay,new FrameLayout.LayoutParams(-1,dp(58),Gravity.BOTTOM));
+        screen.addView(centerToggle,new FrameLayout.LayoutParams(dp(120),dp(64),Gravity.CENTER));
+        screen.addView(seekHint,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));
+        controls.setVisibility(View.GONE);
+        playerView.setOnTouchListener((v,event)->onFullscreenTouch(event));
+        getWindow().getDecorView().setSystemUiVisibility(5894);
+        playerFrame.requestFocus();
+        rebindVideoSurface();
+    }
+    private void exitFullscreen(){
+        if(!fullscreen)return;
+        fullscreen=false;
+        playerView.setOnTouchListener(null);
+        hideOverlays();
+        screen.removeView(seekHint);
+        screen.removeView(centerToggle);
+        screen.removeView(seekOverlay);
+        screen.removeView(controls);
+        normalContent.setPadding(dp(14),dp(12),dp(14),dp(12));
+        details.setVisibility(View.VISIBLE);
+        status.setVisibility(View.VISIBLE);
+        episodeGrid.setVisibility(View.VISIBLE);
+        videoColumn.setLayoutParams(new LinearLayout.LayoutParams(0,-1,3));
+        playerFrame.setPadding(dp(2),dp(2),dp(2),dp(2));
+        playerFrame.setBackgroundResource(R.drawable.focus_player);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        playerFrame.requestFocus();
+        rebindVideoSurface();
+    }
+    // Hiding/restoring the system bars can still resize the surface on some TV devices.
+    // Re-registering the current surface is a no-op when its holder did not change.
+    @androidx.media3.common.util.UnstableApi
+    private void rebindVideoSurface(){
+        playerView.post(()->{
+            if(player==null||!playerView.isAttachedToWindow())return;
+            View video=playerView.getVideoSurfaceView();
+            if(video instanceof SurfaceView)player.setVideoSurfaceView((SurfaceView)video);
+            else if(video instanceof TextureView)player.setVideoTextureView((TextureView)video);
+        });
+    }
     private void showBottomControls(){seekOverlay.setVisibility(View.GONE);updateProgress();controls.setVisibility(View.VISIBLE);handler.removeCallbacks(hideControls);handler.postDelayed(hideControls,3500);}
     private final Runnable hideControls=new Runnable(){public void run(){controls.setVisibility(View.GONE);}};
     private final Runnable hideTouchControls=new Runnable(){public void run(){controls.setVisibility(View.GONE);centerToggle.setVisibility(View.GONE);}};
@@ -83,6 +138,6 @@ public final class PlayerActivity extends RemoteActivity {
     @Override public void onBackPressed(){if(fullscreen){if(controls.getVisibility()==View.VISIBLE||centerToggle.getVisibility()==View.VISIBLE){hideOverlays();return;}exitFullscreen();return;}super.onBackPressed();}
     private void updateScreenAwake(){int state=player==null?Player.STATE_IDLE:player.getPlaybackState();if(foreground&&player!=null&&player.getPlayWhenReady()&&(state==Player.STATE_READY||state==Player.STATE_BUFFERING)){getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}else{getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}}
     protected void onResume(){super.onResume();foreground=true;updateScreenAwake();}
-    protected void onPause(){foreground=false;updateScreenAwake();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){if(player!=null)player.release();network.shutdownNow();super.onDestroy();}
+    protected void onPause(){foreground=false;updateScreenAwake();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){if(player!=null){player.release();player=null;}network.shutdownNow();super.onDestroy();}
     private int dp(int n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
 }

@@ -7,8 +7,6 @@ import android.text.Html;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.SurfaceView;
-import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -85,7 +83,6 @@ public final class PlayerActivity extends RemoteActivity {
         playerView.setOnTouchListener((v,event)->onFullscreenTouch(event));
         getWindow().getDecorView().setSystemUiVisibility(5894);
         playerFrame.requestFocus();
-        rebindVideoSurface();
     }
     private void exitFullscreen(){
         if(!fullscreen)return;
@@ -105,18 +102,6 @@ public final class PlayerActivity extends RemoteActivity {
         playerFrame.setBackgroundResource(R.drawable.focus_player);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         playerFrame.requestFocus();
-        rebindVideoSurface();
-    }
-    // Hiding/restoring the system bars can still resize the surface on some TV devices.
-    // Re-registering the current surface is a no-op when its holder did not change.
-    @androidx.media3.common.util.UnstableApi
-    private void rebindVideoSurface(){
-        playerView.post(()->{
-            if(player==null||!playerView.isAttachedToWindow())return;
-            View video=playerView.getVideoSurfaceView();
-            if(video instanceof SurfaceView)player.setVideoSurfaceView((SurfaceView)video);
-            else if(video instanceof TextureView)player.setVideoTextureView((TextureView)video);
-        });
     }
     private void showBottomControls(){seekOverlay.setVisibility(View.GONE);updateProgress();controls.setVisibility(View.VISIBLE);handler.removeCallbacks(hideControls);handler.postDelayed(hideControls,3500);}
     private final Runnable hideControls=new Runnable(){public void run(){controls.setVisibility(View.GONE);}};
@@ -138,6 +123,6 @@ public final class PlayerActivity extends RemoteActivity {
     @Override public void onBackPressed(){if(fullscreen){if(controls.getVisibility()==View.VISIBLE||centerToggle.getVisibility()==View.VISIBLE){hideOverlays();return;}exitFullscreen();return;}super.onBackPressed();}
     private void updateScreenAwake(){int state=player==null?Player.STATE_IDLE:player.getPlaybackState();if(foreground&&player!=null&&player.getPlayWhenReady()&&(state==Player.STATE_READY||state==Player.STATE_BUFFERING)){getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}else{getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}}
     protected void onResume(){super.onResume();foreground=true;updateScreenAwake();}
-    protected void onPause(){foreground=false;updateScreenAwake();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){if(player!=null){player.release();player=null;}network.shutdownNow();super.onDestroy();}
+    protected void onPause(){foreground=false;updateScreenAwake();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){if(player!=null)player.release();network.shutdownNow();super.onDestroy();}
     private int dp(int n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
 }

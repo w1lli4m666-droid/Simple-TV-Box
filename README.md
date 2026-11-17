@@ -24,10 +24,10 @@ updated without losing watch history when the signing certificate matches.
 The initial release reuses the existing local development signing certificate
 for upgrade compatibility; its private key is not distributed.
 
-### Version 1.1.2
+### Version 1.1.3
 
-[Download the signed ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.2/Simple-TV-Box-v1.1.2-android5-arm.apk)
-or read the [release notes](docs/releases/v1.1.2.md).
+[Download the signed ARMv7 + ARM64 APK](https://github.com/w1lli4m666-droid/Simple-TV-Box/releases/download/v1.1.3/Simple-TV-Box-v1.1.3-android5-arm.apk)
+or read the [release notes](docs/releases/v1.1.3.md).
 
 ## Features
 
@@ -38,6 +38,8 @@ or read the [release notes](docs/releases/v1.1.2.md).
 - Focus a top navigation tab to open it automatically, including Search and
   Watch history. Navigation stays available on those pages.
 - Keep the screen awake during active playback.
+- Show live video download speed in the player center while loading or buffering;
+  hide it automatically when playback is ready, in preview and fullscreen.
 - Cached first-page previews for all five categories, followed by a background refresh.
 - Search suggestions after a short typing pause, a loading spinner, and local
   search-history cards with long-press deletion and a clear-all control.
@@ -98,6 +100,14 @@ prefetch requests are needed. A first launch without cache, an expired cache or
 plugin initialization after an APK update can still require several seconds.
 Caching improves time to visible content; it does not eliminate plugin
 initialization or network latency.
+
+Plugin-loader caches are invalidated when the downloaded plugin changes, rather
+than reused across incompatible versions. If an unchanged plugin fails to load,
+the app retries once with fresh loader caches. Successful caches are retained.
+The built-in API fallback uses bounded public-IP lookups and a 60-second
+in-memory cache tied to the device network. Playback still uses the device's own
+network exit; no project-operated streaming proxy is involved. Episode history
+uses stable IDs across dynamic-plugin and fallback-API playback.
 
 ## Build
 

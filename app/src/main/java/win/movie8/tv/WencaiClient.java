@@ -2,6 +2,10 @@ package win.movie8.tv;
 
 import android.content.Context;
 import android.util.Log;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.Build;
+import android.os.SystemClock;
 import org.conscrypt.Conscrypt;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -29,6 +33,8 @@ public final class WencaiClient {
     private static final String KEY = "cb808529bae6b6be45ecfab29a4889bc";
     private static final String DEVICE_ID = "7c760c16-4a1a-4d5a-99cf-7b9d582385b9";
     private static volatile OkHttpClient HTTP;
+    private static Context application;
+    private static final PublicIpCache IP_CACHE=new PublicIpCache();
     private static final Map<String, String> TYPES = new HashMap<>();
 
     static {
@@ -42,6 +48,7 @@ public final class WencaiClient {
     private WencaiClient() { }
 
     public static synchronized void initialize(Context context) {
+        application=context.getApplicationContext();
         ListPreviewCache.initialize(context);
         if (HTTP == null) HTTP = createHttpClient(context.getApplicationContext());
         DynamicWencaiSource.initialize(context.getApplicationContext(), HTTP);
@@ -142,8 +149,9 @@ public final class WencaiClient {
 
     public static String resolve(String id, String nid, String publicIp) throws Exception {
         try {
-            if (DynamicWencaiSource.available()) return DynamicWencaiSource.resolve(nid);
+            if (DynamicWencaiSource.available()) return DynamicWencaiSource.resolve(EpisodeId.plugin(id,nid));
         } catch (Exception ignored) { }
+        nid=EpisodeId.raw(nid);
         if (publicIp == null || publicIp.isEmpty()) publicIp = publicIpv4();
         String canonical = "clientType=3&id=" + id + "&nid=" + nid;
         JSONObject data;
@@ -166,16 +174,23 @@ public final class WencaiClient {
         return fallback;
     }
 
-    public static String publicIpv4() throws Exception {
+    public static synchronized String publicIpv4() throws Exception {
+        String network=networkKey();String cached=IP_CACHE.read(SystemClock.elapsedRealtime(),network);
+        if(!cached.isEmpty())return cached;
+        OkHttpClient client=http().newBuilder().connectTimeout(1500,TimeUnit.MILLISECONDS)
+                .readTimeout(1500,TimeUnit.MILLISECONDS).callTimeout(2500,TimeUnit.MILLISECONDS)
+                .retryOnConnectionFailure(false).build();
         Exception last = null;
-        for (String endpoint : new String[]{"https://api.ipify.org/", "http://v4.ident.me/"}) {
+        for (String endpoint : new String[]{"http://v4.ident.me/", "https://api.ipify.org/"}) {
             try {
 
                 Request request = new Request.Builder().url(endpoint).header("user-agent", "okhttp/3.15").build();
-                try (Response response = http().newCall(request).execute()) {
+                try (Response response = client.newCall(request).execute()) {
                     if (!response.isSuccessful()) throw new IOException("IP service returned HTTP " + response.code());
                     String address = responseText(response).trim();
-
+                    if(!PublicIpCache.valid(address))throw new IOException("IP service did not return a public IPv4 address");
+                    if(!network.equals(networkKey()))throw new IOException("Network changed during IP lookup");
+                    IP_CACHE.store(address,SystemClock.elapsedRealtime(),network);
                     return address;
                 }
             } catch (Exception error) {
@@ -184,6 +199,18 @@ public final class WencaiClient {
             }
         }
         throw new Exception(AppText.get(R.string.public_ip_failed), last);
+    }
+
+    private static String networkKey(){
+        ConnectivityManager manager=(ConnectivityManager)application.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info=manager.getActiveNetworkInfo();
+        if(info==null||!info.isConnected())return "offline";
+        if(Build.VERSION.SDK_INT>=23)return String.valueOf(manager.getActiveNetwork());
+        for(android.net.Network network:manager.getAllNetworks()){
+            NetworkInfo candidate=manager.getNetworkInfo(network);
+            if(candidate!=null&&candidate.isConnected()&&candidate.getType()==info.getType())return network.toString();
+        }
+        return info.getType()+":"+info.getSubtype()+":"+info.getExtraInfo();
     }
 
     private static List<Movie> list(String type, int page) throws Exception {

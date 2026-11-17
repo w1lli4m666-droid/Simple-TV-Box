@@ -14,8 +14,8 @@ public final class HistoryStore {
         try {
             JSONArray next = new JSONArray(); JSONObject current = new JSONObject();
             current.put("id", movie.id); current.put("name", movie.name); current.put("poster", movie.poster); current.put("remarks", movie.remarks);
-            current.put("nid", episode.nid); current.put("episode", episode.name); current.put("position", position); current.put("updated", System.currentTimeMillis()); next.put(current);
-            for (JSONObject item : items(context)) if (!(movie.id.equals(item.optString("id")) && episode.nid.equals(item.optString("nid")))) next.put(item);
+            current.put("nid", EpisodeId.raw(episode.nid)); current.put("episode", episode.name); current.put("position", position); current.put("updated", System.currentTimeMillis()); next.put(current);
+            for (JSONObject item : items(context)) if (!(movie.id.equals(item.optString("id")) && EpisodeId.same(episode.nid,item.optString("nid")))) next.put(item);
             while (next.length() > 100) next.remove(next.length() - 1);
             prefs(context).edit().putString(KEY, next.toString()).apply();
         } catch (Exception ignored) { }

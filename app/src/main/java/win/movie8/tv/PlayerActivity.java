@@ -3,6 +3,8 @@ package win.movie8.tv;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
+import android.util.Log;
 import android.text.Html;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -19,6 +21,11 @@ import android.widget.TextView;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.datasource.DefaultDataSource;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.TransferListener;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.GridLayoutManager;
 import org.json.JSONArray;
@@ -29,18 +36,47 @@ import java.util.concurrent.Executors;
 
 public final class PlayerActivity extends RemoteActivity {
     private boolean foreground;
+    private long openedAt,playStartedAt;
+    private boolean firstFrameLogged;
+    private final DownloadSpeed downloadSpeed=new DownloadSpeed();
+    private TextView loadingSpeed;
+    private boolean resolvingVideo;
+    private final Runnable speedTick=new Runnable(){public void run(){
+        if(foreground&&loadingSpeed.getVisibility()==View.VISIBLE){
+            loadingSpeed.setText(getString(R.string.loading_speed,downloadSpeed.sample(SystemClock.elapsedRealtime())));
+            handler.postDelayed(this,500);
+        }
+    }};
+    @androidx.annotation.OptIn(markerClass=androidx.media3.common.util.UnstableApi.class)
+    private ExoPlayer createPlayer(){
+        DefaultDataSource.Factory data=new DefaultDataSource.Factory(this).setTransferListener(new TransferListener(){
+            public void onTransferInitializing(DataSource source,DataSpec spec,boolean network){}
+            public void onTransferStart(DataSource source,DataSpec spec,boolean network){}
+            public void onBytesTransferred(DataSource source,DataSpec spec,boolean network,int bytes){if(network)downloadSpeed.add(bytes);}
+            public void onTransferEnd(DataSource source,DataSpec spec,boolean network){}
+        });
+        return new ExoPlayer.Builder(this).setMediaSourceFactory(new DefaultMediaSourceFactory(data)).build();
+    }
+    private void updateLoadingSpeed(){
+        boolean visible=foreground&&(resolvingVideo||player.getPlaybackState()==Player.STATE_BUFFERING);
+        if(visible&&loadingSpeed.getVisibility()!=View.VISIBLE){
+            downloadSpeed.begin(SystemClock.elapsedRealtime());
+            loadingSpeed.setVisibility(View.VISIBLE);speedTick.run();
+        }else if(!visible){loadingSpeed.setVisibility(View.GONE);handler.removeCallbacks(speedTick);}
+    }
     private final ExecutorService network=Executors.newSingleThreadExecutor(); private final Handler handler=new Handler(); private ExoPlayer player; private Movie movie; private final ArrayList<Episode> episodes=new ArrayList<>(); private Episode active; private TextView status,intro,seekHint,timeText,seekTime; private long restorePosition; private FrameLayout screen,playerFrame,seekOverlay; private PlayerView playerView; private LinearLayout normalContent,videoColumn,controls; private ImageButton centerToggle,bottomToggle,nextButton; private Button sortButton; private SeekBar progress,seekProgress; private DpadGridView episodeGrid; private EpisodeAdapter episodeAdapter; private boolean descending,fullscreen,seeking; private float swipeStartX; private long swipeStartPosition;
     private final Runnable saver=new Runnable(){public void run(){save();handler.postDelayed(this,5000);}};
-    public void onCreate(Bundle state){super.onCreate(state);movie=new Movie(getIntent().getStringExtra("id"),getIntent().getStringExtra("name"),getIntent().getStringExtra("poster"),getIntent().getStringExtra("remarks"),"","","","");if(getIntent().hasExtra("nid")){restorePosition=getIntent().getLongExtra("position",0);}else{JSONObject saved=HistoryStore.latestForMovie(this,movie.id);if(saved!=null){getIntent().putExtra("nid",saved.optString("nid"));restorePosition=saved.optLong("position",0);}}build();load();}
+    public void onCreate(Bundle state){super.onCreate(state);openedAt=SystemClock.elapsedRealtime();movie=new Movie(getIntent().getStringExtra("id"),getIntent().getStringExtra("name"),getIntent().getStringExtra("poster"),getIntent().getStringExtra("remarks"),"","","","");if(getIntent().hasExtra("nid")){restorePosition=getIntent().getLongExtra("position",0);}else{JSONObject saved=HistoryStore.latestForMovie(this,movie.id);if(saved!=null){getIntent().putExtra("nid",saved.optString("nid"));restorePosition=saved.optLong("position",0);}}build();load();}
     private void build(){
         screen=new FrameLayout(this);screen.setBackgroundColor(Color.rgb(16,16,16));normalContent=new LinearLayout(this);normalContent.setOrientation(LinearLayout.VERTICAL);normalContent.setPadding(dp(14),dp(12),dp(14),dp(12));screen.addView(normalContent,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout top=new LinearLayout(this);top.setOrientation(LinearLayout.HORIZONTAL);normalContent.addView(top,new LinearLayout.LayoutParams(-1,0,1));videoColumn=new LinearLayout(this);videoColumn.setOrientation(LinearLayout.VERTICAL);top.addView(videoColumn,new LinearLayout.LayoutParams(0,-1,3));
-        playerFrame=new FrameLayout(this);playerFrame.setFocusable(true);playerFrame.setFocusableInTouchMode(false);playerFrame.setPadding(dp(2),dp(2),dp(2),dp(2));playerFrame.setBackgroundResource(R.drawable.focus_player);player=new ExoPlayer.Builder(this).build();playerView=new PlayerView(this);playerView.setPlayer(player);playerView.setUseController(false);playerView.setOnClickListener(v->{if(!fullscreen)enterFullscreen();});playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));videoColumn.addView(playerFrame,new LinearLayout.LayoutParams(-1,0,1));
+        playerFrame=new FrameLayout(this);playerFrame.setFocusable(true);playerFrame.setFocusableInTouchMode(false);playerFrame.setPadding(dp(2),dp(2),dp(2),dp(2));playerFrame.setBackgroundResource(R.drawable.focus_player);player=createPlayer();playerView=new PlayerView(this);playerView.setPlayer(player);playerView.setUseController(false);playerView.setOnClickListener(v->{if(!fullscreen)enterFullscreen();});playerFrame.addView(playerView,new FrameLayout.LayoutParams(-1,-1));videoColumn.addView(playerFrame,new LinearLayout.LayoutParams(-1,0,1));
+        loadingSpeed=new TextView(this);loadingSpeed.setTextColor(Color.WHITE);loadingSpeed.setTextSize(17);loadingSpeed.setGravity(Gravity.CENTER);loadingSpeed.setPadding(dp(14),dp(8),dp(14),dp(8));loadingSpeed.setBackgroundColor(0x99000000);loadingSpeed.setVisibility(View.GONE);loadingSpeed.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);playerFrame.addView(loadingSpeed,new FrameLayout.LayoutParams(-2,-2,Gravity.CENTER));
         status=new TextView(this);status.setTextColor(Color.LTGRAY);status.setPadding(0,dp(7),0,0);videoColumn.addView(status,new LinearLayout.LayoutParams(-1,dp(30)));
         sortButton=new Button(this);sortButton.setId(View.generateViewId());sortButton.setText(getString(R.string.sort_descending));sortButton.setTextColor(Color.WHITE);sortButton.setTextSize(14);sortButton.setAllCaps(false);sortButton.setBackgroundResource(R.drawable.focus_button);sortButton.setOnClickListener(v->{descending=!descending;sortButton.setText(descending?getString(R.string.sort_ascending):getString(R.string.sort_descending));episodeAdapter.replace(episodes,descending);focusFirstEpisode();});top.addView(sortButton,new LinearLayout.LayoutParams(dp(72),dp(44)));playerFrame.setNextFocusRightId(sortButton.getId());
         LinearLayout details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);details.setPadding(dp(12),0,0,dp(30));top.addView(details,new LinearLayout.LayoutParams(0,-1,2));TextView title=new TextView(this);title.setText(movie.name);title.setTextSize(21);title.setTextColor(Color.WHITE);title.setMaxLines(2);details.addView(title);TextView remark=new TextView(this);remark.setText(movie.remarks);remark.setTextColor(Color.rgb(246,168,0));remark.setPadding(0,dp(10),0,0);details.addView(remark);intro=new TextView(this);intro.setTextColor(Color.rgb(190,190,190));intro.setTextSize(14);intro.setPadding(0,dp(12),0,0);details.addView(intro,new LinearLayout.LayoutParams(-1,0,1));
         TextView label=new TextView(this);label.setText(getString(R.string.episodes));label.setTextColor(Color.WHITE);label.setTextSize(17);label.setPadding(0,dp(8),0,dp(3));normalContent.addView(label);episodeGrid=new DpadGridView(this);episodeGrid.setId(View.generateViewId());episodeGrid.setLayoutManager(new GridLayoutManager(this,8));episodeAdapter=new EpisodeAdapter(this,this::play);episodeGrid.setAdapter(episodeAdapter);normalContent.addView(episodeGrid,new LinearLayout.LayoutParams(-1,dp(98)));sortButton.setOnKeyListener((v,key,event)->{if(event.getAction()==KeyEvent.ACTION_DOWN&&key==KeyEvent.KEYCODE_DPAD_DOWN){focusFirstEpisode();return true;}return false;});
-        top.removeView(sortButton);details.addView(sortButton,new LinearLayout.LayoutParams(dp(72),dp(44)));label.setVisibility(View.GONE);buildFullscreenControls();setContentView(screen);player.addListener(new Player.Listener(){public void onPlaybackStateChanged(int state){updateScreenAwake();if(state==Player.STATE_ENDED)next();}public void onPlayWhenReadyChanged(boolean ready,int reason){updateScreenAwake();}public void onPlayerError(androidx.media3.common.PlaybackException error){getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}});
+        top.removeView(sortButton);details.addView(sortButton,new LinearLayout.LayoutParams(dp(72),dp(44)));label.setVisibility(View.GONE);buildFullscreenControls();setContentView(screen);player.addListener(new Player.Listener(){public void onPlaybackStateChanged(int state){updateScreenAwake();updateLoadingSpeed();if(state==Player.STATE_ENDED)next();}public void onPlayWhenReadyChanged(boolean ready,int reason){updateScreenAwake();}public void onRenderedFirstFrame(){if(!firstFrameLogged){firstFrameLogged=true;Log.i("Movie8Playback","First frame openMs="+(SystemClock.elapsedRealtime()-openedAt)+" playMs="+(SystemClock.elapsedRealtime()-playStartedAt));}}public void onPlayerError(androidx.media3.common.PlaybackException error){resolvingVideo=false;updateLoadingSpeed();getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}});
     }
     private void buildFullscreenControls(){
         controls=new LinearLayout(this);controls.setGravity(Gravity.CENTER_VERTICAL);controls.setPadding(dp(16),dp(8),dp(16),dp(12));controls.setBackgroundColor(0x66000000);timeText=new TextView(this);timeText.setTextColor(Color.WHITE);timeText.setTextSize(15);controls.addView(timeText,new LinearLayout.LayoutParams(dp(120),dp(44)));progress=new SeekBar(this);progress.setEnabled(false);controls.addView(progress,new LinearLayout.LayoutParams(0,dp(44),1));addControl(R.drawable.ic_previous,v->previous());bottomToggle=addControl(R.drawable.ic_pause,v->toggle());nextButton=addControl(R.drawable.ic_next,v->next());
@@ -49,9 +85,9 @@ public final class PlayerActivity extends RemoteActivity {
         seekOverlay=new FrameLayout(this);seekOverlay.setPadding(dp(16),0,dp(16),dp(5));seekOverlay.setBackgroundColor(0x55000000);seekOverlay.setVisibility(View.GONE);seekProgress=new SeekBar(this);seekProgress.setEnabled(false);seekOverlay.addView(seekProgress,new FrameLayout.LayoutParams(-1,dp(30),Gravity.BOTTOM));seekTime=new TextView(this);seekTime.setTextColor(Color.WHITE);seekTime.setTextSize(14);seekTime.setPadding(dp(6),0,dp(6),0);seekTime.setBackgroundColor(0xaa000000);seekOverlay.addView(seekTime,new FrameLayout.LayoutParams(-2,dp(24),Gravity.TOP|Gravity.LEFT));
     }
     private ImageButton addControl(int icon,View.OnClickListener action){ImageButton b=new ImageButton(this);b.setImageResource(icon);b.setContentDescription(getString(icon==R.drawable.ic_previous?R.string.previous_episode:icon==R.drawable.ic_next?R.string.next_episode:R.string.play_pause));b.setScaleType(android.widget.ImageView.ScaleType.CENTER);b.setFocusable(true);b.setBackgroundResource(R.drawable.focus_player_control);b.setOnClickListener(action);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(72),dp(44));p.setMargins(dp(6),0,0,0);controls.addView(b,p);return b;}
-    private void load(){status.setText(getString(R.string.loading_episodes));network.execute(()->{try{JSONObject data=WencaiClient.detail(movie.id);JSONArray eps=data.optJSONArray("episodeList");if(eps!=null)for(int i=0;i<eps.length();i++){JSONObject e=eps.getJSONObject(i);episodes.add(new Episode(e.optString("name",String.valueOf(i+1)),e.optString("nid")));}runOnUiThread(()->{intro.setText(Html.fromHtml(data.optString("vodContent",movie.remarks)));episodeAdapter.replace(episodes,descending);String wanted=getIntent().getStringExtra("nid");Episode start=episodes.isEmpty()?null:episodes.get(0);for(Episode e:episodes)if(e.nid.equals(wanted))start=e;if(start!=null){play(start);playerFrame.requestFocus();}else status.setText(getString(R.string.no_episodes));});}catch(Exception e){runOnUiThread(()->status.setText(getString(R.string.load_failed,e.getMessage())));}});}
+    private void load(){resolvingVideo=true;updateLoadingSpeed();status.setText(getString(R.string.loading_episodes));network.execute(()->{try{JSONObject data=WencaiClient.detail(movie.id);JSONArray eps=data.optJSONArray("episodeList");if(eps!=null)for(int i=0;i<eps.length();i++){JSONObject e=eps.getJSONObject(i);episodes.add(new Episode(e.optString("name",String.valueOf(i+1)),e.optString("nid")));}runOnUiThread(()->{intro.setText(Html.fromHtml(data.optString("vodContent",movie.remarks)));episodeAdapter.replace(episodes,descending);String wanted=getIntent().getStringExtra("nid");Episode start=episodes.isEmpty()?null:episodes.get(0);for(Episode e:episodes)if(EpisodeId.same(e.nid,wanted))start=e;if(start!=null){play(start);playerFrame.requestFocus();}else{resolvingVideo=false;updateLoadingSpeed();status.setText(getString(R.string.no_episodes));}});}catch(Exception e){runOnUiThread(()->{resolvingVideo=false;updateLoadingSpeed();status.setText(getString(R.string.load_failed,e.getMessage()));});}});}
     private void focusFirstEpisode(){episodeGrid.post(()->{androidx.recyclerview.widget.RecyclerView.ViewHolder holder=episodeGrid.findViewHolderForAdapterPosition(0);if(holder!=null)holder.itemView.requestFocus();else{episodeGrid.scrollToPosition(0);episodeGrid.post(()->{androidx.recyclerview.widget.RecyclerView.ViewHolder retry=episodeGrid.findViewHolderForAdapterPosition(0);if(retry!=null)retry.itemView.requestFocus();});}});}
-    private void play(Episode episode){active=episode;status.setText(getString(R.string.resolving_video));network.execute(()->{try{String url=WencaiClient.resolve(movie.id,episode.nid,"");runOnUiThread(()->{player.setMediaItem(MediaItem.fromUri(url));player.prepare();player.play();restorePositionIfNeeded();status.setText(episode.name);});}catch(Exception e){runOnUiThread(()->status.setText(getString(R.string.play_failed,e.getMessage())));}});}
+    private void play(Episode episode){active=episode;playStartedAt=SystemClock.elapsedRealtime();firstFrameLogged=false;resolvingVideo=true;updateLoadingSpeed();status.setText(getString(R.string.resolving_video));network.execute(()->{try{String url=WencaiClient.resolve(movie.id,episode.nid,"");Log.i("Movie8Playback","Resolved elapsedMs="+(SystemClock.elapsedRealtime()-playStartedAt));runOnUiThread(()->{player.setMediaItem(MediaItem.fromUri(url));player.prepare();player.play();restorePositionIfNeeded();resolvingVideo=false;updateLoadingSpeed();status.setText(episode.name);});}catch(Exception e){runOnUiThread(()->{resolvingVideo=false;updateLoadingSpeed();status.setText(getString(R.string.play_failed,e.getMessage()));});}});}
     private void restorePositionIfNeeded(){if(restorePosition>0){player.seekTo(restorePosition);restorePosition=0;}}
     private void previous(){int i=episodes.indexOf(active);if(i>0)play(episodes.get(i-1));}
     private void next(){int i=episodes.indexOf(active);if(i>=0&&i+1<episodes.size())play(episodes.get(i+1));}
@@ -82,7 +118,7 @@ public final class PlayerActivity extends RemoteActivity {
     private void save(){if(active!=null&&player!=null&&player.getCurrentPosition()>0)HistoryStore.save(this,movie,active,player.getCurrentPosition());}
     @Override public void onBackPressed(){if(fullscreen){if(controls.getVisibility()==View.VISIBLE||centerToggle.getVisibility()==View.VISIBLE){hideOverlays();return;}exitFullscreen();return;}super.onBackPressed();}
     private void updateScreenAwake(){int state=player==null?Player.STATE_IDLE:player.getPlaybackState();if(foreground&&player!=null&&player.getPlayWhenReady()&&(state==Player.STATE_READY||state==Player.STATE_BUFFERING)){getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}else{getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}}
-    protected void onResume(){super.onResume();foreground=true;updateScreenAwake();}
-    protected void onPause(){foreground=false;updateScreenAwake();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){if(player!=null)player.release();network.shutdownNow();super.onDestroy();}
+    protected void onResume(){super.onResume();foreground=true;updateScreenAwake();updateLoadingSpeed();}
+    protected void onPause(){foreground=false;updateScreenAwake();updateLoadingSpeed();super.onPause();save();} protected void onStart(){super.onStart();handler.post(saver);} protected void onStop(){handler.removeCallbacks(saver);handler.removeCallbacks(hideControls);super.onStop();} protected void onDestroy(){handler.removeCallbacksAndMessages(null);if(player!=null)player.release();network.shutdownNow();super.onDestroy();}
     private int dp(int n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
 }

@@ -3,6 +3,7 @@ package win.movie8.tv;
 import android.content.Context;
 import android.app.Application;
 import android.util.Base64;
+import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -150,9 +151,20 @@ final class DynamicWencaiSource {
             File cached = pluginFile();
             try {
                 if (!cached.isFile()) throw new Exception(AppText.get(R.string.missing_plugin_cache), refreshError);
-                loadPlugin(cached);
+                String fingerprint=md5(cached);
+                File marker=new File(cached.getParentFile(),"loader-version");
+                boolean rebuilt=PluginCache.prepare(app.getCodeCacheDir(),marker,fingerprint);
+                if(rebuilt)Log.i("Movie8Wencai","Plugin fingerprint changed; rebuilding loader cache");
+                try{loadPlugin(cached);}catch(Exception | LinkageError first){
+                    if(rebuilt)throw first;
+                    Log.w("Movie8Wencai","Plugin initialization failed; retrying once with fresh loader cache",first);
+                    PluginCache.reset(app.getCodeCacheDir());loadPlugin(cached);
+                }
+                try{PluginCache.commit(marker,fingerprint);}catch(java.io.IOException error){Log.w("Movie8Wencai","Could not persist loader fingerprint",error);}
+                Log.i("Movie8Wencai","Dynamic plugin initialized");
             } catch (Exception | LinkageError error) {
                 initializationFailure = new Exception(AppText.get(R.string.plugin_init_failed), error);
+                Log.w("Movie8Wencai","Dynamic plugin unavailable; using built-in API",error);
                 throw initializationFailure;
             }
         }

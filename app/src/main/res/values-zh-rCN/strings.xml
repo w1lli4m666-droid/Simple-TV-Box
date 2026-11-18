@@ -35,6 +35,7 @@
     <string name="play_pause">暂停或播放</string>
     <string name="previous_episode">上一集</string>
     <string name="next_episode">下一集</string>
+    <string name="replay">从头播放</string>
     <string name="player_control">播放器控制</string>
     <string name="missing_details">文采未返回影视详情</string>
     <string name="missing_video_url">文采未返回播放地址</string>

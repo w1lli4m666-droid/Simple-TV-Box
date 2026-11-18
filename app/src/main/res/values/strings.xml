@@ -35,6 +35,7 @@
     <string name="play_pause">Play or pause</string>
     <string name="previous_episode">Previous episode</string>
     <string name="next_episode">Next episode</string>
+    <string name="replay">Play from start</string>
     <string name="player_control">Player control</string>
     <string name="missing_details">Wencai returned no video details</string>
     <string name="missing_video_url">Wencai returned no playback URL</string>
